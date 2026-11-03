@@ -72,6 +72,7 @@ textarea.wa{min-height:150px;font-size:13px;resize:vertical}
 
 footer.ft{max-width:1000px;margin:0 auto;padding:0 16px 40px;font-size:13px;color:var(--muted)}
 footer.ft b{color:var(--brand)}
+footer.ft a{color:var(--brand);text-decoration:underline}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--dark);color:#fff;padding:10px 16px;border-radius:8px;font-weight:600;font-size:14px;z-index:20;max-width:calc(100vw - 32px)}
 </style>
 </head>
@@ -95,7 +96,7 @@ footer.ft b{color:var(--brand)}
   </div>
 
   <h2 class="t">Semáforo UV del día</h2>
-  <p class="lead">Ingrese el índice UV máximo del día que publica la Dirección Meteorológica de Chile. La herramienta muestra el nivel y las medidas que corresponden, y prepara el aviso para el diario mural o WhatsApp.</p>
+  <p class="lead">Elija una ubicación y la herramienta entrega el índice UV máximo del día (fuente: Open-Meteo), las medidas que corresponden y el aviso para el diario mural o WhatsApp.</p>
 
   <div class="grid2">
     <div class="card">
@@ -121,6 +122,7 @@ footer.ft b{color:var(--brand)}
       <input type="range" id="uvRange" min="0" max="16" step="1" aria-label="Índice UV" style="margin-top:10px">
       <div class="lvls" id="lvls"></div>
       <p class="note" style="margin-top:12px">Si el puesto está en altura, junto a agua, arena o nieve, o el día está muy despejado, el índice real puede ser mayor. Evalúe esos casos aparte, por puesto de trabajo.</p>
+      <p class="note" style="margin-top:8px">El valor automático puede diferir en 1 punto del que publica la Dirección Meteorológica de Chile. Contrástelo con ella cuando el índice esté justo en el límite entre dos niveles (2/3, 5/6, 7/8 o 10/11).</p>
     </div>
     <div class="card" id="semOut"></div>
   </div>
@@ -148,7 +150,9 @@ footer.ft b{color:var(--brand)}
 
 <footer class="ft">
   <p><b>Maritza Pizarro</b> · Ingeniera en Prevención de Riesgos, Calidad y Medio Ambiente</p>
-  <p style="margin-top:10px">Referencias: DS 594, artículo 109 bis (radiación UV de origen solar); Ley 20.096; Guía Técnica de radiación UV de origen solar del MINSAL. Las medidas son de referencia: verifique siempre la versión vigente de la normativa y ajuste a cada faena.</p>
+  <p style="margin-top:10px">Referencias: DS 594 art. 109 bis, Ley 20.096 y Guía Técnica UV del MINSAL. Medidas de referencia: verifique la normativa vigente y ajuste a cada faena.</p>
+  <p style="margin-top:6px">Datos: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Weather data by Open-Meteo.com</a> (CC BY 4.0). Respaldo: <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a> (cielo despejado, valor máximo).</p>
+  <p style="margin-top:6px">Privacidad: no guardamos su ubicación; se envía a Open-Meteo solo para consultar el índice. Lo que escribe no se guarda al cerrar la página.</p>
 </footer>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
@@ -206,8 +210,12 @@ function pdfHead(doc,o){
 function pdfFoot(doc){
   var n=doc.getNumberOfPages(),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
   for(var i=1;i<=n;i++){
-    doc.setPage(i);doc.setFontSize(8);doc.setTextColor(107,114,128);doc.setFont('helvetica','normal');
-    doc.text('Maritza Pizarro - Ingeniera en Prevencion de Riesgos, Calidad y Medio Ambiente',12,H-8);
+    doc.setPage(i);doc.setFontSize(8);
+    var fx=12,fy=H-8;
+    doc.setFont('helvetica','bold');doc.setTextColor(31,41,55);doc.text('PREVEIA',fx,fy);fx+=doc.getTextWidth('PREVEIA ');
+    doc.setFont('helvetica','normal');doc.setTextColor(75,85,99);doc.text('Prevención que',fx,fy);fx+=doc.getTextWidth('Prevención que ');
+    doc.setFont('helvetica','bold');doc.setTextColor(194,65,12);doc.text('evoluciona',fx,fy);
+    doc.setFont('helvetica','normal');doc.setTextColor(107,114,128);
     doc.text('Página '+i+' de '+n,W-12,H-8,{align:'right'});
   }
 }
@@ -255,8 +263,11 @@ var MEASURES={
  'muy-alto':[['Bloqueador',BLOQ50],['Cabeza y cuello',CABEZA],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga y pantalón largo'],['Sombra y pausas','Pausa a la sombra cada hora, con agua'],['Organización','Reprogramar tareas al aire libre fuera del horario crítico y rotar al personal'],['Supervisión','El supervisor revisa el uso de EPP al iniciar y a media jornada']],
  'extremo':[['Organización','Evitar el trabajo al aire libre en el horario crítico siempre que sea posible'],['Bloqueador',BLOQ50],['Cabeza y cuello',CABEZA],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga, pantalón largo y cuello cubierto'],['Sombra y pausas','Pausas frecuentes a la sombra, con agua y rotación del personal'],['Supervisión','Supervisión permanente del uso de EPP']]
 };
-var uv=store.get('uv',7);
+var uv=7;
 var auto=null; /* {src,name} mientras el índice viene de la consulta automática; null si se corrigió a mano */
+var manual=false; /* true si la persona corrigió el índice a mano: se pausa la consulta automática hasta "Actualizar ahora" */
+var reqSeq=0;
+var CACHE_TTL=3*60*60*1000; /* no se vuelve a consultar la misma ubicación y fecha antes de 3 horas */
 
 function renderSem(){
   uv=Math.max(0,Math.min(20,Math.round(+uv||0)));
@@ -269,7 +280,6 @@ function renderSem(){
     '<ul class="measures">'+M.map(function(m){return '<li><span class="k">'+esc(m[0])+'</span><span>'+esc(m[1])+'</span></li>'}).join('')+'</ul>'+
     '<div class="crit"><span>Horario crítico</span> 10:00 a 17:00 h</div>';
   $('#waText').value=avisoTexto();
-  store.set('uv',uv);
 }
 function renderSemKeep(){
   uv=Math.max(0,Math.min(20,Math.round(+uv||0)));
@@ -321,15 +331,15 @@ async function drawAviso(){
   });
   x.fillStyle='#F3F4F6';rr(x,60,1186,960,64,12);x.fill();x.strokeStyle='#9CA3AF';x.lineWidth=2;x.stroke();
   x.fillStyle='#0E7490';x.font='700 30px Inter,system-ui,sans-serif';x.fillText('Horario crítico: 10:00 a 17:00 h',90,1228);
-  x.fillStyle='#1F2937';x.font='700 26px Inter,system-ui,sans-serif';x.fillText('PREVEIA',60,1300);
+  x.fillStyle='#1F2937';x.font='700 19px Inter,system-ui,sans-serif';x.fillText('PREVEIA',60,1318);
   var wn=x.measureText('PREVEIA ').width;
-  x.fillStyle='#4B5563';x.font='400 26px Inter,system-ui,sans-serif';x.fillText('Prevención que ',60+wn,1300);
+  x.fillStyle='#4B5563';x.font='400 19px Inter,system-ui,sans-serif';x.fillText('Prevención que ',60+wn,1318);
   var wq=x.measureText('Prevención que ').width;
-  x.fillStyle='#C2410C';x.font='700 26px Inter,system-ui,sans-serif';x.fillText('evoluciona',60+wn+wq,1300);
+  x.fillStyle='#C2410C';x.font='700 19px Inter,system-ui,sans-serif';x.fillText('evoluciona',60+wn+wq,1318);
   if(auto){
-    x.font='400 22px Inter,system-ui,sans-serif';x.textAlign='right';x.fillStyle='#4B5563';
-    var fu='Fuente: '+auto.src+' · '+auto.name;if(x.measureText(fu).width>420){while(x.measureText(fu+'…').width>420&&fu.length>10)fu=fu.slice(0,-1);fu=fu.trim()+'…'}
-    x.fillText(fu,1020,1300);x.textAlign='left';
+    x.font='400 19px Inter,system-ui,sans-serif';x.textAlign='right';x.fillStyle='#4B5563';
+    var fu='Fuente: '+auto.src+' · '+auto.name;if(x.measureText(fu).width>520){while(x.measureText(fu+'…').width>520&&fu.length>10)fu=fu.slice(0,-1);fu=fu.trim()+'…'}
+    x.fillText(fu,1020,1318);x.textAlign='left';
   }
   return toBlob(c);
 }
@@ -349,8 +359,7 @@ function descargarRegistro(){
 /* ======================================================
    ÍNDICE UV AUTOMÁTICO (Open-Meteo, respaldo MET Norway)
    ====================================================== */
-var loc=store.get('loc',null),autoTimer=null;
-if(loc&&loc.name)loc.name=loc.name.replace(/\(\s*-?\d[^)]*\)?/,'(GPS)');
+var loc=null,autoTimer=null; /* la ubicación no se recuerda: cada vez que se abre la página se elige de nuevo */
 function setState(msg,bad){var e=$('#autoState');e.textContent=msg;e.style.color=bad?'var(--bad)':''}
 function fetchJson(url){return fetch(url).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
 function uvOpenMeteo(l,date){
@@ -370,22 +379,50 @@ function uvMetNo(l,date){
     return {uv:mx,src:'MET Norway (cielo despejado)'};
   });
 }
-function autoUV(){
+/* caché local: evita consultar de nuevo la misma ubicación y fecha (menos llamadas a las APIs gratuitas) */
+function cacheKey(l,date){return (+l.lat).toFixed(2)+','+(+l.lon).toFixed(2)+'|'+date}
+function cacheGet(l,date){
+  var c=store.get('uvcache',{});return c[cacheKey(l,date)]||null;
+}
+function cachePut(l,date,r){
+  var c=store.get('uvcache',{}),now=Date.now(),keep={};
+  Object.keys(c).forEach(function(k){if(now-c[k].t<24*60*60*1000)keep[k]=c[k]});
+  keep[cacheKey(l,date)]={uv:r.uv,src:r.src,t:now};
+  store.set('uvcache',keep);
+}
+function hhmm(t){var h=new Date(t);return pad(h.getHours())+':'+pad(h.getMinutes())}
+function applyUV(r,date,t,note){
+  uv=Math.round(r.uv);auto={src:r.src,name:loc.name};manual=false;renderSem();
+  setState('Índice UV máximo '+uv+' para '+loc.name+' el '+fmtDate(date)+'. Fuente: '+r.src+', consultado a las '+hhmm(t)+'.'+(note||'')+' Puede corregirlo a mano.');
+}
+/* opts.force: ignora la caché y la corrección manual (botón "Actualizar ahora", cambio de ubicación o de fecha) */
+function autoUV(opts){
+  opts=opts||{};
   if(!loc){return}
+  if(manual&&!opts.force){return}
   var date=$('#semFecha').value||localDate();
-  setState('Consultando el índice UV para '+loc.name+'…');
-  uvOpenMeteo(loc,date).catch(function(){return uvMetNo(loc,date)}).then(function(r){
-    uv=Math.round(r.uv);auto={src:r.src,name:loc.name};renderSem();
-    var h=new Date();
-    setState('Índice UV máximo '+uv+' para '+loc.name+' el '+fmtDate(date)+'. Fuente: '+r.src+', actualizado '+pad(h.getHours())+':'+pad(h.getMinutes())+'. Puede corregirlo a mano.');
+  var hit=cacheGet(loc,date);
+  if(hit&&!opts.force&&Date.now()-hit.t<CACHE_TTL){applyUV(hit,date,hit.t);return}
+  var my=++reqSeq,L=loc; /* si llega una respuesta vieja (o la persona corrigió a mano mientras tanto), se descarta */
+  setState('Consultando el índice UV para '+L.name+'…');
+  uvOpenMeteo(L,date).catch(function(){return uvMetNo(L,date)}).then(function(r){
+    cachePut(L,date,r);if(my!==reqSeq)return;applyUV(r,date,Date.now());
   }).catch(function(){
+    if(my!==reqSeq)return;
+    if(hit){applyUV(hit,date,hit.t,' No hay conexión con el servicio: se muestra el último valor consultado.');return}
     setState('No se pudo obtener el índice automáticamente. Revise su conexión o ingréselo a mano.',true);
   });
 }
+function manualUV(){
+  /* la persona corrigió el índice: se deja de pisar su valor con la consulta automática */
+  auto=null;manual=true;reqSeq++;
+  if(loc)setState('Índice corregido a mano. Presione “Actualizar ahora” para volver al valor automático de '+loc.name+'.');
+}
+function refreshNow(){autoUV({force:true})}
 function setLoc(l){
-  loc=l;store.set('loc',l);$('#btnRefresh').hidden=false;
-  if($('#lugar').value.trim()===''||$('#lugar').dataset.auto==='1'){$('#lugar').value=l.name;$('#lugar').dataset.auto='1';store.set('co',company())}
-  autoUV();clearInterval(autoTimer);autoTimer=setInterval(autoUV,30*60*1000);
+  loc=l;$('#btnRefresh').hidden=false;
+  if($('#lugar').value.trim()===''||$('#lugar').dataset.auto==='1'){$('#lugar').value=l.name;$('#lugar').dataset.auto='1'}
+  manual=false;autoUV();clearInterval(autoTimer);autoTimer=setInterval(function(){autoUV()},30*60*1000);
 }
 function geoName(r){return [r.name,r.admin1].filter(Boolean).join(', ')}
 function searchLoc(){
@@ -416,22 +453,24 @@ function initAuto(){
   $('#locQ').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();searchLoc()}});
   $('#locQ').addEventListener('change',searchLoc);
   $('#locRes').addEventListener('change',function(e){pick(+e.target.value)});
-  $('#btnRefresh').addEventListener('click',autoUV);
-  $('#semFecha').addEventListener('change',autoUV);
+  $('#btnRefresh').addEventListener('click',refreshNow);
+  $('#semFecha').addEventListener('change',function(){manual=false;autoUV()});
   $('#lugar').addEventListener('input',function(){this.dataset.auto='0'});
-  document.addEventListener('visibilitychange',function(){if(!document.hidden&&loc)autoUV()});
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&loc)autoUV()}); /* respeta la corrección manual y la caché */
   if(loc){$('#btnRefresh').hidden=false;setLoc(loc)}
 }
 
 function init(){
-  var co=store.get('co',{empresa:'',lugar:''});$('#empresa').value=co.empresa||'';$('#lugar').value=co.lugar||'';
-  var onCo=function(){store.set('co',company());$('#waText').value=avisoTexto()};
+  /* los campos siempre parten vacíos; se borran también los datos que versiones anteriores guardaron en este dispositivo */
+  try{['co','loc','uv'].forEach(function(k){localStorage.removeItem('semuv.'+k)})}catch(e){}
+  $('#empresa').value='';$('#lugar').value='';
+  var onCo=function(){$('#waText').value=avisoTexto()};
   $('#empresa').addEventListener('input',onCo);$('#lugar').addEventListener('input',onCo);
 
   $('#lvls').innerHTML=LEVELS.map(function(l,i){return '<button class="lvl" data-i="'+i+'" style="--lv:'+l.color+';--ink:'+l.ink+'" aria-pressed="false">'+l.name+'<small>'+l.range+'</small></button>'}).join('');
-  $('#lvls').addEventListener('click',function(e){var b=e.target.closest('.lvl');if(!b)return;auto=null;uv=LEVELS[+b.dataset.i].min;renderSem()});
-  $('#uvNum').addEventListener('input',function(e){auto=null;uv=e.target.value===''?0:+e.target.value;renderSemKeep()});
-  $('#uvRange').addEventListener('input',function(e){auto=null;uv=+e.target.value;renderSem()});
+  $('#lvls').addEventListener('click',function(e){var b=e.target.closest('.lvl');if(!b)return;manualUV();uv=LEVELS[+b.dataset.i].min;renderSem()});
+  $('#uvNum').addEventListener('input',function(e){manualUV();uv=e.target.value===''?0:+e.target.value;renderSemKeep()});
+  $('#uvRange').addEventListener('input',function(e){manualUV();uv=+e.target.value;renderSem()});
   $('#semFecha').value=localDate();$('#semFecha').addEventListener('change',function(){if(!loc)auto=null;renderSem()});
   $('#btnAviso').addEventListener('click',async function(){
     var b=await drawAviso();if(b)saveFile('aviso-uv-'+fileTag()+($('#semFecha').value||localDate())+'.png',b);
