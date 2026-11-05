@@ -66,7 +66,7 @@ h2.t{font-size:22px;color:var(--brand);font-weight:700}
 .measures li:last-child{border:0}
 .measures .k{font-weight:700;color:var(--brand);font-size:13px}
 @media(max-width:520px){.measures li{grid-template-columns:minmax(0,1fr);gap:2px}}
-.crit{display:flex;gap:10px;align-items:center;margin-top:14px;font-weight:700}
+.crit{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px;font-weight:700}
 .crit span{background:var(--dark);color:#fff;border-radius:6px;padding:4px 10px;font-size:13px}
 textarea.wa{min-height:150px;font-size:13px;resize:vertical}
 
@@ -96,7 +96,7 @@ footer.ft a{color:var(--brand);text-decoration:underline}
   </div>
 
   <h2 class="t">Semáforo UV del día</h2>
-  <p class="lead">Elija una ubicación y la herramienta entrega el índice UV máximo del día (fuente: Open-Meteo), las medidas que corresponden y el aviso para el diario mural o WhatsApp.</p>
+  <p class="lead">Elija una ubicación y la herramienta entrega el índice UV máximo del día, las medidas que corresponden y el aviso para el diario mural o WhatsApp.</p>
 
   <div class="grid2">
     <div class="card">
@@ -255,13 +255,13 @@ var LEVELS=[
 ];
 var levelIdx=function(uv){return uv>=11?4:uv>=8?3:uv>=6?2:uv>=3?1:0};
 var BLOQ50='FPS 50+ aplicado 20 minutos antes de salir; reaplicar cada 2 horas y después de sudar';
-var CABEZA='Legionario o casco con cubrenuca, sin excepción';
+var CABEZA='Uso de legionario o cubrenuca, sin excepción. Casco con visera con filtro UV. Sombrero ala ancha';
 var MEASURES={
- 'bajo':[['Bloqueador','FPS 30+ si la jornada al aire libre es prolongada'],['Ojos','Lentes con filtro UV, sobre todo cerca de agua, arena o metal claro'],['Cabeza','Sombrero o gorro con ala'],['Hidratación','Agua potable disponible en el frente de trabajo']],
- 'moderado':[['Bloqueador','FPS 30+ aplicado 20 minutos antes de salir; reaplicar cada 2 horas'],['Cabeza y cuello','Legionario o casco con cubrenuca'],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga; cubrir cuello y antebrazos'],['Sombra','Pausas a la sombra en el horario crítico']],
- 'alto':[['Bloqueador',BLOQ50],['Cabeza y cuello',CABEZA],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga y pantalón largo'],['Sombra y pausas','Zona de sombra cercana y pausas a la sombra'],['Organización','Tareas largas o pesadas fuera del horario crítico, si es posible']],
- 'muy-alto':[['Bloqueador',BLOQ50],['Cabeza y cuello',CABEZA],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga y pantalón largo'],['Sombra y pausas','Pausa a la sombra cada hora, con agua'],['Organización','Reprogramar tareas al aire libre fuera del horario crítico y rotar al personal'],['Supervisión','El supervisor revisa el uso de EPP al iniciar y a media jornada']],
- 'extremo':[['Organización','Evitar el trabajo al aire libre en el horario crítico siempre que sea posible'],['Bloqueador',BLOQ50],['Cabeza y cuello',CABEZA],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga, pantalón largo y cuello cubierto'],['Sombra y pausas','Pausas frecuentes a la sombra, con agua y rotación del personal'],['Supervisión','Supervisión permanente del uso de EPP']]
+ 'bajo':[['Bloqueador','FPS 30+ si la jornada al aire libre es prolongada'],['Ojos','Lentes con filtro UV, sobre todo cerca de agua, arena o metal claro'],['Cabeza','Uso de legionario o sombrero de ala ancha: mínimo 7 cm'],['Hidratación','Agua potable disponible en el frente de trabajo']],
+ 'moderado':[['Bloqueador','FPS 30+ aplicado 20 minutos antes de salir; reaplicar cada 2 horas'],['Cabeza y cuello','Uso de legionario o cubrenuca. Casco con visera con filtro UV. Sombrero ala ancha'],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga; cubrir cuello y antebrazos'],['Sombra','Pausas a la sombra en el horario crítico']],
+ 'alto':[['Bloqueador',BLOQ50],['Cabeza y cuello',CABEZA],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga y pantalón largo'],['Sombra y pausas','Sombra en el puesto, pausas a la sombra y agua potable'],['Organización','Dejar las tareas largas o pesadas fuera del horario crítico, en lo posible']],
+ 'muy-alto':[['Bloqueador',BLOQ50],['Cabeza y cuello',CABEZA],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga y pantalón largo'],['Sombra y pausas','Sombra en el puesto, pausa a la sombra cada hora y agua potable'],['Organización','Reprogramar fuera del horario crítico las tareas que se puedan mover, en lo posible, y rotar entre tareas al sol y a la sombra'],['Supervisión','El supervisor revisa el uso de EPP al iniciar y a media jornada']],
+ 'extremo':[['Organización','Evitar el trabajo al aire libre en el horario crítico, en lo posible, y rotar al personal'],['Bloqueador',BLOQ50],['Cabeza y cuello',CABEZA],['Ojos','Lentes con filtro UV'],['Ropa','Manga larga, pantalón largo y cuello cubierto'],['Sombra y pausas','Sombra en el puesto, pausas frecuentes a la sombra y agua potable'],['Supervisión','Supervisión permanente del uso de EPP']]
 };
 var uv=7;
 var auto=null; /* {src,name} mientras el índice viene de la consulta automática; null si se corrigió a mano */
@@ -291,7 +291,6 @@ function avisoTexto(){
   t+='Índice UV: '+uv+' · Nivel '+L.name.toUpperCase()+'\n\nMedidas de hoy:\n';
   MEASURES[L.id].forEach(function(m){t+='• '+m[0]+': '+m[1]+'\n'});
   t+='\nHorario crítico: 10:00 a 17:00 h\n';
-  if(auto)t+='Fuente del índice: '+auto.src+' · '+auto.name+'\n';
   t+='\nPrevención de Riesgos';
   return t;
 }
@@ -316,9 +315,12 @@ async function drawAviso(){
   x.font='600 30px Inter,system-ui,sans-serif';x.fillText('Rango '+L.range,560,460);
   x.fillStyle='#C2410C';x.font='800 42px Inter,system-ui,sans-serif';x.fillText('Medidas de hoy',60,620);
   var y=675,M=MEASURES[L.id],fs=30,lh=40;
-  var total=0;x.font='400 '+fs+'px Inter,system-ui,sans-serif';
-  M.forEach(function(m){total+=wrapText(x,m[0]+': '+m[1],880).length*lh+12});
-  if(total>470){fs=26;lh=35}
+  var total;
+  [30,28,26,24,22].some(function(s){
+    fs=s;lh=Math.round(s*1.33);total=0;x.font='400 '+fs+'px Inter,system-ui,sans-serif';
+    M.forEach(function(m){total+=wrapText(x,m[0]+': '+m[1],880).length*lh+12});
+    return total<=490;
+  });
   M.forEach(function(m){
     x.font='400 '+fs+'px Inter,system-ui,sans-serif';
     var lines=wrapText(x,m[0]+': '+m[1],880);
@@ -336,11 +338,6 @@ async function drawAviso(){
   x.fillStyle='#4B5563';x.font='400 19px Inter,system-ui,sans-serif';x.fillText('Prevención que ',60+wn,1318);
   var wq=x.measureText('Prevención que ').width;
   x.fillStyle='#C2410C';x.font='700 19px Inter,system-ui,sans-serif';x.fillText('evoluciona',60+wn+wq,1318);
-  if(auto){
-    x.font='400 19px Inter,system-ui,sans-serif';x.textAlign='right';x.fillStyle='#4B5563';
-    var fu='Fuente: '+auto.src+' · '+auto.name;if(x.measureText(fu).width>520){while(x.measureText(fu+'…').width>520&&fu.length>10)fu=fu.slice(0,-1);fu=fu.trim()+'…'}
-    x.fillText(fu,1020,1318);x.textAlign='left';
-  }
   return toBlob(c);
 }
 
@@ -393,7 +390,7 @@ function cachePut(l,date,r){
 function hhmm(t){var h=new Date(t);return pad(h.getHours())+':'+pad(h.getMinutes())}
 function applyUV(r,date,t,note){
   uv=Math.round(r.uv);auto={src:r.src,name:loc.name};manual=false;renderSem();
-  setState('Índice UV máximo '+uv+' para '+loc.name+' el '+fmtDate(date)+'. Fuente: '+r.src+', consultado a las '+hhmm(t)+'.'+(note||'')+' Puede corregirlo a mano.');
+  setState('Índice UV máximo '+uv+' para '+loc.name+' el '+fmtDate(date)+', consultado a las '+hhmm(t)+'.'+(note||'')+' Puede corregirlo a mano.');
 }
 /* opts.force: ignora la caché y la corrección manual (botón "Actualizar ahora", cambio de ubicación o de fecha) */
 function autoUV(opts){
